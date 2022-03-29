@@ -15,12 +15,6 @@
 
 void process(void* data){
     //rfm transmitter
-    if (fg2 > 0)
-	{
-		tl0 = temp;
-		pollcat = 0;
-	}
-
 	while ((tl1 = TLATCH(host_buffer)[0]) == tl0)
 	{
 		sched_yield();

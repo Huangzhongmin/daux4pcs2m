@@ -333,10 +333,6 @@ u32 acq2106_dig_input(int crd_index)
 	return stats[1];
 }
 
-unsigned temp;
-int fg2 = 0;
-unsigned tl0 = 0xdeadbeef; // always run one dummy loop
-unsigned tl1;
 unsigned sample;
 int println = 0;
 int pollcat = 0;
@@ -346,54 +342,10 @@ unsigned int BUFFER = 160;
 
 void run(void (*action)(void *))
 {
-	if (fg2 == 0)
-	{
-	}
-	if (fg2 > 0)
-	{
-		tl0 = temp;
-		pollcat = 0;
-	}
+	unsigned tl0 = 0xdeadbeef;	/* always run one dummy loop */
+	unsigned tl1;
+	mlockall(MCL_CURRENT);
 
-	while ((tl1 = TLATCH(host_buffer)[0]) == tl0)
-	{
-		sched_yield();
-		// memcpy(ai_buffer,host_buffer,VI_LEN);
-		++pollcat;
-	}
-	memcpy(ai_buffer, host_buffer, VI_LEN);
-	// fprintf(ftlatch,"%u\n",tl1);
-	action(ai_buffer);
-	outbuffer[0] = sss * 0.00002;
-	printf("the time is %f \n", outbuffer[0]);
-	int iii;
-	for (iii = 1; iii <= NSHORTS; iii++)
-		outbuffer[iii] = (float)ai_buffer[iii - 1] * 1.0;
-	//		result = RFM2gWrite(Handle,info[rfmindex].offset+info[rfmindex].num_channel*sizeof(short),(void *)ai_buffer,info[rfmindex].num_channel*sizeof(short));
-
-	info[0].offset = 0x100;
-	info[0].num_channel = 96;
-	result = RFM2gWrite(Handle, info[0].offset + info[0].num_channel * sizeof(short), (void *)ai_buffer, info[0].num_channel * sizeof(short));
-
-	if (result == RFM2G_SUCCESS)
-	{
-		//  printf( "The data was written to Reflective Memory.  " );
-	}
-	else
-	{
-		printf("ERROR: Could not write data to Reflective Memory.\n");
-		RFM2gClose(&Handle);
-		return (-1);
-	}
-
-	if (verbose)
-	{
-		print_sample(sample, tl1);
-	}
-	//	}
-
-	temp = tl1;
-	fg2++;
 }
 
 /*

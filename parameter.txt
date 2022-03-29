@@ -1,0 +1,7 @@
+DEVNUM 0
+AOCHAN 32
+DO32 1
+DUP1 0
+AICHAN 128
+nsamples 400000
+clkdiv 50

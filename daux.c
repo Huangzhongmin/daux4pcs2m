@@ -7,42 +7,71 @@
  * @Description: 
  */
 #include "daq_helper.h"
+#include "rfm_helper.h"
 
 #include <stdio.h>
 #include <unistd.h>
 #include <sched.h>
 
+void process(void* data){
+    //rfm transmitter
+    if (fg2 > 0)
+	{
+		tl0 = temp;
+		pollcat = 0;
+	}
 
-void set_cpu(int id)
-{
-  cpu_set_t mask;
-  CPU_ZERO(&mask);
-  CPU_SET(id,&mask);
-  if(sched_setaffinity(0,sizeof(mask),&mask) == -1)
-  {
-	printf("set CPU affinity error!\n");
-  }
-  else
-	printf("set CPU affinity ok!\n");
+	while ((tl1 = TLATCH(host_buffer)[0]) == tl0)
+	{
+		sched_yield();
+		++pollcat;
+	}
+	memcpy(ai_buffer, host_buffer, VI_LEN);
+	action(ai_buffer);
+	outbuffer[0] = sss * 0.00002;
+	int iii;
+	for (iii = 1; iii <= NSHORTS; iii++)
+		outbuffer[iii] = (float)ai_buffer[iii - 1] * 1.0;
+	//		result = RFM2gWrite(Handle,info[rfmindex].offset+info[rfmindex].num_channel*sizeof(short),(void *)ai_buffer,info[rfmindex].num_channel*sizeof(short));
+
+	info[0].offset = 0x100;
+	info[0].num_channel = 96;
+	result = RFM2gWrite(Handle, info[0].offset + info[0].num_channel * sizeof(short), (void *)ai_buffer, info[0].num_channel * sizeof(short));
+
+	if (result == RFM2G_SUCCESS)
+	{
+		//  printf( "The data was written to Reflective Memory.  " );
+	}
+	else
+	{
+		printf("ERROR: Could not write data to Reflective Memory.\n");
+		RFM2gClose(&Handle);
+		return (-1);
+	}
+
+	if (verbose)
+	{
+		print_sample(sample, tl1);
+	}
+
+	temp = tl1;
+	fg2++;
+}  
+    //VS Cal
 }
 
 
 int main(int argc, char* argv[]){
-    int raffinity = 1;
-    int vaffinity = 2;
+    int affinity = 1;
     int cycle = 100;
     char zfile[32];
 
     int getopt;
-    while(getopt=getopt(argc,argv,"r::v::c::z::")){
+    while(getopt=getopt(argc,argv,"a::c::z::")){
         switch(getopt){
-            case 'r':
-                raffinity = atoi(optarg);
-                printf("RFM repeater is deployed at core: %d\n", raffinity);
-                break;
-            case 'v':
-                vaffinity = atoi(optarg);
-                printf("VS controller is deployed at core: %d\n ", vaffinity);
+            case 'a':
+                affinity = atoi(optarg);
+                printf("Affinity at core: %d\n ", affinity);
                 break;
             case 'c':
                 cycle = atoi(optarg);
@@ -54,13 +83,14 @@ int main(int argc, char* argv[]){
                 break;
             case '?':
                 printf("usage:\n");
-                printf("-r          RFM repeater affinity. 01 by default.");
-                printf("-v          VS controller affinity. 02 by default.");
+                printf("-a          Programme CPU affinity. 01 by default.");
                 printf("-c          Execution cycle count by microsecond. 100 by default.");
                 printf("-z          Zfile path. ~/ztargrt.dat by default.");
                 break;
         }
     }
+
+    setAffinity(affinity);
 
     while(1){
         int sockfd;
@@ -101,8 +131,24 @@ int main(int argc, char* argv[]){
         sscanf(buf,"%d,%d",&shot,&total_time);
 	    printf("shot number is %d,total_time is %d ms\n",shot,total_time);
 
- 
+        //init
+        
+        //zfile
+        FILE *fp = fopen(zfile, "r");
 
+        //card init
+        acq2106_init(100,4,32,1);
+        rfm_init();
+        G_action = process;
+
+        while(1){
+            run(G_action);
+        }
+
+        //clean
+
+        
     }
+    //clean
     return 0;
 }

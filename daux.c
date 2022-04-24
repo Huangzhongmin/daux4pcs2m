@@ -8,30 +8,27 @@
  */
 #include "daq_helper.h"
 #include "rfm_helper.h"
+#include "mds_helper.h"
 
 #include <stdio.h>
 #include <unistd.h>
 #include <sched.h>
 
-void process(void* data){
-    //rfm transmitter
-	while ((tl1 = TLATCH(host_buffer)[0]) == tl0)
-	{
-		sched_yield();
-		++pollcat;
-	}
-	memcpy(ai_buffer, host_buffer, VI_LEN);
-	action(ai_buffer);
-	outbuffer[0] = sss * 0.00002;
-	int iii;
-	for (iii = 1; iii <= NSHORTS; iii++)
-		outbuffer[iii] = (float)ai_buffer[iii - 1] * 1.0;
-	//		result = RFM2gWrite(Handle,info[rfmindex].offset+info[rfmindex].num_channel*sizeof(short),(void *)ai_buffer,info[rfmindex].num_channel*sizeof(short));
 
-	info[0].offset = 0x100;
-	info[0].num_channel = 96;
+//global 
+void* host_buffer;
+short *ai_buffer;
+short *card_buffer;
+int fd;
+int CLK_DIV = 10;
+int EXT_CLK = 1000000;
+
+
+void process(void* data){
+//rfm transmitter
 	result = RFM2gWrite(Handle, info[0].offset + info[0].num_channel * sizeof(short), (void *)ai_buffer, info[0].num_channel * sizeof(short));
 
+#ifdef DEBUG
 	if (result == RFM2G_SUCCESS)
 	{
 		//  printf( "The data was written to Reflective Memory.  " );
@@ -42,16 +39,64 @@ void process(void* data){
 		RFM2gClose(&Handle);
 		return (-1);
 	}
-
 	if (verbose)
 	{
 		print_sample(sample, tl1);
 	}
+#endif
+//vs cal
 
-	temp = tl1;
-	fg2++;
 }  
-    //VS Cal
+
+
+void run(int runtimes,void (*action)(void *))
+{
+	if(fg2 == 0)
+	{
+		mlockall(MCL_CURRENT);
+		memset(host_buffer, 0, VI_LEN);
+		if (!dummy_first_loop ){
+			TLATCH(host_buffer)[0] = tl0;   //change TLATCH(ai_buffer) to TLATCH(host_buffer)
+		}     
+   
+	}
+	if(fg2>0)
+	{
+		tl0 = temp;
+		pollcat = 0;
+	}
+
+		while((tl1 = TLATCH(host_buffer)[0]) == tl0){
+			sched_yield();
+			++pollcat;
+		}
+		memcpy(ai_buffer,host_buffer,VI_LEN);
+		action(ai_buffer);
+	/*	outbuffer[0]= sss*0.00002;
+		int iii;
+		for(iii = 0;iii <= NSHORTS;iii++)
+		ai_buffer[iii] = 1.0;	
+	*/	
+		result = RFM2gWrite(Handle,OFFSET_1+CHANNEL_NUM*sizeof(short),(void *)ai_buffer,CHANNEL_NUM*sizeof(short));
+
+
+		if( result == RFM2G_SUCCESS )
+        {
+          //  printf( "The data was written to Reflective Memory.  " );
+        }
+        else
+        {
+            printf( "ERROR: Could not write data to Reflective Memory.\n" );
+            RFM2gClose( &Handle );
+            return(-1);
+        }
+
+		if (verbose){
+			print_sample(sample, tl1);
+		}
+
+temp = tl1;
+fg2++;
 }
 
 
@@ -91,7 +136,7 @@ int main(int argc, char* argv[]){
         struct sockaddr_in server;
         struct sockaddr_in client;
         socklen_t len;
-        int num;
+        int msglen;
         int shot;
         char buf[MAXDATASIZE];
 
@@ -113,36 +158,45 @@ int main(int argc, char* argv[]){
         len = sizeof(client);
         printf("waitting for shot number...\n");
 
-        num = recvfrom(sockfd, buf, MAXDATASIZE, 0, (struct sockaddr *)&client, &len);
-        if(num < 0)
+        msglen = recvfrom(sockfd, buf, MAXDATASIZE, 0, (struct sockaddr *)&client, &len);
+        if(msglen < 0)
         {
             perror("recvfrom() error.\n");
             exit(1);
         }
-        buf[num] = '\0';
-        printf("You got a shotnumber and total_time <%s> from client. \nIt's ip is %s, port is %d. \n", buf, inet_ntoa(client.sin_addr),htons(client.sin_port));
-       
+        buf[msglen] = '\0';
         sscanf(buf,"%d,%d",&shot,&total_time);
-	    printf("shot number is %d,total_time is %d ms\n",shot,total_time);
+        printf("Got shot info from %s:%d. \n", buf, inet_ntoa(client.sin_addr),htons(client.sin_port));
+	    printf("SHOT: %d,Total Time: %d ms\n",shot,total_time);
 
         //init
         
         //zfile
         FILE *fp = fopen(zfile, "r");
-
-        //card init
-        acq2106_init(100,4,32,1);
+        //read zfile
+ 
+        //init
+        acq2106_init(cycle,4,32,1);
         rfm_init();
+        vscal_init();
+	    //mem prepare
+        double clk = 1.0/(EXT_CLK/CLK_DIV);
+	    nsamples = (64+total_time/1000000)*(EXT_CLK/CLK_DIV);
+        create_tree("mds-server", "fastz_hl2m", shot);
+        mlockall(MCL_CURRENT);
+        memset(host_buffer, 0, VI_LEN);
+        sprintf(stdout, "Initialization completed. Waiting for trigger...\n ");
+        
+        //process
         G_action = process;
-
-        while(1){
-            run(G_action);
-        }
+        run(nsamples,G_action);
 
         //clean
-
-        
-    }
+        vscal_clean();
+        rfm_end();
+        acq2016_end();
+        sprintf(stdout, "Initialization completed. Waiting for NEXT shot...\n ");
+        }
     //clean
     return 0;
 }

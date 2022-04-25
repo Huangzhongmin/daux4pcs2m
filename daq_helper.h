@@ -1,4 +1,3 @@
-
 #ifndef __DAQ_HELPER_H__
 #define __DAQ_HELPER_H__
 
@@ -30,15 +29,14 @@ short *ai_buffer;
 short *card_buffer;
 int fd;
 int CLK_DIV = 10;
-// int total_time;
-// int nsamples = (total_time+7000)*1000/CLK_DIV
+int EXT_CLK = 1000000;
+
+int rc = 0;
 
 int samples_buffer = 1; /* set > 1 to decimate max 16*64bytes */
-int verbose;
 FILE *fp_log;
 void (*G_action)(void *);
 int devnum = 0;
-int dummy_first_loop;
 /** potentially good for cache fill, but sets initial value zero */
 int G_POLARITY = 1;
 /** env POLARITY=-1 negates feedback this is usefult to know that the
@@ -48,6 +46,15 @@ short *ao_buffer;
 int has_do32;
 int DUP1 = 0; /* duplicate AI[DUP1], default 0 */
 short *AO_IDENT;
+
+unsigned tl0 = 0xdeadbeef;   // always run one dummy loop 
+unsigned tl1;
+unsigned sample;
+int println = 0;
+int pollcat = 0;
+int sss;
+void *pDMem = NULL;
+unsigned int BUFFER = 160;
 
 struct XLLC_DEF xllc_def = {
 	.pa = RTM_T_USE_HOSTBUF,
@@ -83,10 +90,10 @@ void control_feedforward(short *ao, short *ai);
  */
 struct info
 {
-	char para[100];
+	char para[16];
 	int data;
-	float xs;
 };
+
 int calibdata_initialized = 0;
 float calibdata[6][32]; // max boards * max channels
 
@@ -118,117 +125,47 @@ static void selectBoards(int num_boards)
 void setup();
 void run(void (*action)(void *));
 
-float outbuffer[NSHORTS + 1]; /* Data written to another node      */
-short inbuffer[NSHORTS];	  /* Data read from another node       */
 
-struct head_msg
-{
-	char name[256];
-	int offset;
-	int num_channel;
-};
-struct head_msg info[2];
-int rfmindex = 0, rfmflag = 1;
-
-int acq2106_init(int cycle_time, int num_boards, int num_channels, int dtacq_control)
+int acq2106_init(int cycle_time, int num_boards, int num_channels)
 {
 	/*frequency division*/
 	CLK_DIV = cycle_time;
-	int system(const char *command);
-	FILE *fs;
-	fs = fopen("llc-test-harness-AI123-AO56", "r+");
-	if (fs == NULL)
-	{
-		printf("can not open file!\n");
-		return 0;
-	}
-	printf("open success!\n");
-
-	int k = 1, col = 25, c, c1, cnt;
-	char ch;
-	char str1[50] = "EXTCLKDIV=${EXTCLKDIV:-";
-	char str2[2] = "}";
-	char str[512];
-	sprintf(str, "%s%d%s", str1, cycle_time, str2);
-
-	while (k != col)
-	{
-		ch = fgetc(fs);
-		if (ch == '\n')
-			k++;
-	}
-	c = ftell(fs);
-	while (fgetc(fs) != '\n')
-	{
-		c1 = ftell(fs);
-	}
-	fseek(fs, c, SEEK_SET);
-	cnt = c1 - c;
-	for (k = 0; k < cnt; k++)
-	{
-		fputc(str[k], fs);
-	}
-	fclose(fs);
+	char modifyDiv[128];
+	sprintf(modifyDiv, "sed '25c EXTCLKDIV=${EXTCLKDIV:-%d}' -i llc-test-harness-AI123-AO56", cycle_time);
+	system(modifyDiv);
 
 	selectBoards(num_boards);
 
-	FILE *stream;
-	char bf[1024];
-	stream = popen("./llc-test-harness-AI123-AO56", "r");
-	if (stream == NULL)
-	{
-		printf("popen error!\n");
-	}
-	else
-	{
-		while (fgets(bf, sizeof(bf), stream) != NULL)
-			printf("%s\n", bf);
-		pclose(stream);
-	}
-	printf("the init scripts is running!\n");
+	rc = system("llc-test-harness-AI123-AO56");
+	if(WIFEXITED(rc))
+		printf("The init scripts is executed!\n");
 
 	int i = 0;
-	int j;
-	struct info pm[100];
+	struct info params[10];
 	FILE *fp;
 	fp = fopen("parameter.txt", "r");
 	if (fp == NULL)
 	{
-		printf("Can not open file!\n");
+		printf("ERROR: parameter.txt missing!\n");
 		return 0;
 	}
 	while (!feof(fp))
 	{
-		fscanf(fp, "%s %d\n", &pm[i].para, &pm[i].data);
+		fscanf(fp, "%s %d\n", &params[i].para, &params[i].data);
+		if (strcmp(params[i].para, "DEVNUM") == 0)
+			devnum = params[i].data;
+		else if (strcmp(params[i].para, "AOCHAN") == 0)
+			aochan = params[i].data;
+		else if (strcmp(params[i].para, "DO32") == 0)
+			has_do32 = params[i].data;
+		else if (strcmp(params[i].para, "DUP1") == 0)
+			DUP1 = params[i].data;
+		else if (strcmp(params[i].para, "AICHAN") == 0)
+			nchan = params[i].data;
 		i++;
 	}
 	fclose(fp);
 
-	for (j = 0; j < i; j++)
-	{
-		if (strcmp(pm[j].para, "DEVNUM") == 0)
-		{
-			devnum = pm[j].data;
-		}
-
-		if (strcmp(pm[j].para, "AOCHAN") == 0)
-		{
-			aochan = pm[j].data;
-		}
-
-		if (strcmp(pm[j].para, "DO32") == 0)
-		{
-			has_do32 = pm[j].data;
-		}
-		if (strcmp(pm[j].para, "DUP1") == 0)
-		{
-			DUP1 = pm[j].data;
-		}
-		if (strcmp(pm[j].para, "AICHAN") == 0)
-		{
-			nchan = pm[j].data;
-		}
-	}
 	ncards = num_boards;
 	channels = num_channels;
 	nchan = ncards * channels;
@@ -237,7 +174,6 @@ int acq2106_init(int cycle_time, int num_boards, int num_channels, int dtacq_con
 	AO_IDENT = make_ao_ident(ao_ident);
 
 	xllc_def.len = VI_LEN;
-	// G_action = write_action;
 
 	setup();
 
@@ -245,7 +181,7 @@ int acq2106_init(int cycle_time, int num_boards, int num_channels, int dtacq_con
 	memset(host_buffer, 0, VI_LEN);
 	if (!dummy_first_loop)
 	{
-		TLATCH(host_buffer)[0] = tl0; // change TLATCH(ai_buffer) to TLATCH(host_buffer)
+		TLATCH(host_buffer)[0] = tl0; 
 	}
 }
 

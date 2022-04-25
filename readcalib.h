@@ -1,3 +1,11 @@
+/*
+ * @Author: zhongmin.huang
+ * @Date: 2022-04-24 10:02:18
+ * @LastEditors: zhongmin.huang
+ * @LastEditTime: 2022-04-24 10:03:18
+ * @FilePath: \pcs_onserverd:\hl2m_pcs\daux4pcs2m\readcalib.h
+ * @Description: 
+ */
 #ifndef __READCALIB_H__
 #define __READCALIB_H__
 
@@ -21,7 +29,7 @@ int readcalib(char* file,float* calibs){
         else{
             lasts = strrchr(buf,' ');
             if(++lasts)
-                sscanf(lasts,"%f",&calibs[i++]);
+                sscanf(lasts,"%f",&calibs[c++]);
         }
     }
     fclose(fp);

@@ -1,3 +1,11 @@
+/*
+ * @Author: zhongmin.huang
+ * @Date: 2022-03-29 15:18:54
+ * @LastEditors: zhongmin.huang
+ * @LastEditTime: 2022-04-25 16:20:31
+ * @FilePath: \daux4pcs2m\rfm_helper.h
+ * @Description: 
+ */
 #ifndef __RFM_HELPER_H__
 #define __RFM_HELPER_H__
 
@@ -8,7 +16,8 @@
 #define PROCFILE "/proc/rfm2g"
 #define MAPBUFSIZE 0x00100000 /* 1MB DMA Buffer Size */
 #define BUFFER_SIZE 160
-//#define OFFSET_1        0x1000
+
+#define OFFSET_DAQ        0x100
 #define OFFSET_head 0x0
 #define RFM_RESERVED 500
 #define OFFSET_2 0x2000
@@ -33,18 +42,19 @@ RFM2G_BOOL loopAgain;
 RFM2G_BOOL verbose1;
 RFM2GHANDLE Handle = 0;
 
+
+float outbuffer[NSHORTS + 1]; /* Data written to another node      */
+short inbuffer[NSHORTS];	  /* Data read from another node       */
+
 void rfm_init()
 {
+    printf("RFM init ... ");
     result = RFM2gOpen(RFM_DEVICE0, &Handle);
     if (result != RFM2G_SUCCESS)
     {
         printf("ERROR: RFM2gOpen() failed.\n");
         printf("Error: %s.\n", RFM2gErrorMsg(result));
         return (-1);
-    }
-    else
-    {
-        printf("RFM open success!\n");
     }
 
     RFM2G_UINT64 offset = 0x140000000 | RFM2G_DMA_MMAP_OFFSET;
@@ -56,10 +66,7 @@ void rfm_init()
         RFM2gClose(&Handle);
         return (-1);
     }
-    else
-    {
-        printf("DMA access ok!\n");
-    }
+    printf("Done.\n");
 }
 
 int rfm_end()

@@ -123,8 +123,6 @@ static void selectBoards(int num_boards)
  *
  */
 void setup();
-void run(void (*action)(void *));
-
 
 int acq2106_init(int cycle_time, int num_boards, int num_channels)
 {
@@ -178,11 +176,7 @@ int acq2106_init(int cycle_time, int num_boards, int num_channels)
 	setup();
 
 	mlockall(MCL_CURRENT);
-	memset(host_buffer, 0, VI_LEN);
-	if (!dummy_first_loop)
-	{
-		TLATCH(host_buffer)[0] = tl0; 
-	}
+
 }
 
 void setup()

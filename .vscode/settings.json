@@ -1,10 +1,12 @@
 {
-    "files.associations": {
-        "*.tex": "tex",
-        "stdlib.h": "c"
-    },
     "cSpell.words": [
-        "fastz",
-        "nsamples"
+        "anum",
+        "ipnorm",
+        "szdt",
+        "sztc",
+        "wnum",
+        "zfbuf",
+        "ZFBUFLEN",
+        "ztarget"
     ]
 }

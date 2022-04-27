@@ -134,7 +134,7 @@ int acq2106_init(int cycle_time, int num_boards, int num_channels)
 
 	selectBoards(num_boards);
 
-	rc = system("llc-test-harness-AI123-AO56");
+	rc = system("./llc-test-harness-AI123-AO56 > /dev/null");
 	if(WIFEXITED(rc))
 		printf("The init scripts is executed!\n");
 
@@ -261,21 +261,6 @@ u32 acq2106_dig_input(int crd_index)
 {
 	u32 *stats = (u32 *)((void *)host_buffer + AO_OFFSET);
 	return stats[1];
-}
-
-unsigned sample;
-int println = 0;
-int pollcat = 0;
-int sss;
-void *pDMem = NULL;
-unsigned int BUFFER = 160;
-
-void run(void (*action)(void *))
-{
-	unsigned tl0 = 0xdeadbeef;	/* always run one dummy loop */
-	unsigned tl1;
-	mlockall(MCL_CURRENT);
-
 }
 
 /*

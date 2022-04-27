@@ -1,29 +1,21 @@
+CC = gcc
+
 CFLAGS += -O2
 LDLIBS += -lm -lrt
 
-#FLAGS = -I/usr/local/mdsplus/include -L/usr/local/mdsplus/lib ./include/librfm2g.a
-#LDFLAG = -lMdsLib
+INCLUDE = -I/usr/local/mdsplus/include -I/usr/lib64/rfm2g
+LD = -L/usr/local/mdsplus/lib -L/usr/lib64/rfm2g
+LIB = -lMdsLib -lrfm2g
 
 
+all: daux 
 
 
-all: apps
-
-
-APPS := afhba-llcontrol-cpucopy 
-	
-	
-apps: $(APPS)
-
-
-
-afhba-llcontrol-cpucopy: DAQ-rfm-forpcs.c
-#	$(CC) -o $@ $^ $(FLAGS) $(LDFLAG)
-	cc -o afhba-llcontrol-cpucopy DAQ-rfm-forpcs.c -lpopt  -lpthread ./include/librfm2g.a
+daux: daux.c
+	$(CC) -o daux daux.c -lpopt  -lpthread ${INCLUDE} ${LD} ${LIB}
 	
 	
 clean:
-	rm -f $(APPS) afhba.0.log ftlach.log
-
+	rm daux 
 
 	

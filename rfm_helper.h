@@ -2,8 +2,8 @@
  * @Author: zhongmin.huang
  * @Date: 2022-03-29 15:18:54
  * @LastEditors: zhongmin.huang
- * @LastEditTime: 2022-04-25 16:20:31
- * @FilePath: \daux4pcs2m\rfm_helper.h
+ * @LastEditTime: 2022-04-25 21:24:57
+ * @FilePath: \新建文件夹 (2)\rfm_helper.h
  * @Description: 
  */
 #ifndef __RFM_HELPER_H__
@@ -46,7 +46,7 @@ RFM2GHANDLE Handle = 0;
 float outbuffer[NSHORTS + 1]; /* Data written to another node      */
 short inbuffer[NSHORTS];	  /* Data read from another node       */
 
-void rfm_init()
+int rfm_init()
 {
     printf("RFM init ... ");
     result = RFM2gOpen(RFM_DEVICE0, &Handle);

@@ -27,7 +27,8 @@
 #define LLCONTROL_AFHBA_LLCONTROL_COMMON_H_
 
 #define _GNU_SOURCE
-#include <sched.h>
+#define __USE_GNU
+#include <pthread.h>
 
 #include <stdio.h>
 #include <stdlib.h>

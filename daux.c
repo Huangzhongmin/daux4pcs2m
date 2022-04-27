@@ -2,26 +2,35 @@
  * @Author: zhongmin.huang
  * @Date: 2022-02-22 09:56:19
  * @LastEditors: zhongmin.huang
- * @LastEditTime: 2022-04-25 19:41:51
- * @FilePath: \daux4pcs2m\daux.c
+ * @LastEditTime: 2022-04-27 15:06:12
+ * @FilePath: \新建文件夹 (2)\daux.c
  * @Description: 
  */
 #include "daq_helper.h"
 #include "rfm_helper.h"
 #include "mds_helper.h"
 
+#include "vscontrol.h"
+
 #include <stdio.h>
 #include <unistd.h>
+#include <string.h>
+#define __USE_GNU
 #include <sched.h>
+#include <pthread.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
 
 
 //global 
-
+#define PORT 12298
 
 
 void process(void* data){
 //rfm transmitter
-	result = RFM2gWrite(Handle, info[0].offset + info[0].num_channel * sizeof(short), (void *)ai_buffer, info[0].num_channel * sizeof(short));
+	result = RFM2gWrite(Handle, 0, (void *)ai_buffer, 10 * sizeof(short));
 
 #ifdef DEBUG
 	if (result == RFM2G_SUCCESS)
@@ -44,8 +53,7 @@ void process(void* data){
 
 }
 
-
-void run(void (*action)(void *))
+void run(void (*action)(void *),float time)
 {
     pollcat = 0;
 	while((tl1 = TLATCH(host_buffer)[0]) == tl0){
@@ -57,37 +65,63 @@ void run(void (*action)(void *))
     tl0 = tl1;
 }
 
+void set_cpu(int id)
+{
+  cpu_set_t mask;
+  CPU_ZERO(&mask);
+  CPU_SET(id,&mask);
+  if(sched_setaffinity(0,sizeof(mask),&mask) == -1)
+  {
+	printf("set CPU affinity error!\n");
+  }
+  else
+	printf("set CPU affinity ok!\n");
+}
 
 int main(int argc, char* argv[]){
+    printf("*********************************************\n");
+    printf("******██████╗  █████╗ ██╗   ██╗██╗  ██╗******\n");
+    printf("******██╔══██╗██╔══██╗██║   ██║╚██╗██╔╝******\n");
+    printf("******██║  ██║███████║██║   ██║ ╚███╔╝ ******\n");
+    printf("******██║  ██║██╔══██║██║   ██║ ██╔██╗ ******\n");
+    printf("******██████╔╝██║  ██║╚██████╔╝██╔╝ ██╗******\n");
+    printf("******╚═════╝ ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝******\n");
+    printf("***Distributed auxiliary for PCS of HL-2M ***\n");
+    printf("*********************************************\n");
+    printf("*******D-TACQ2106 Support & VS control*******\n");
+    printf("*********************************************\n\n");
+
     int affinity = 1;
     int cycle = 100;
-    char zfile[32];
-
-    int getopt;
-    while(getopt=getopt(argc,argv,"a::c::z::")){
-        switch(getopt){
+    char zfile[64];
+    strcpy(zfile, "~/ztargrt.dat");
+    
+    int ch;
+    while((ch=getopt(argc,argv,"a::c::z::"))!=-1){
+        switch(ch){
             case 'a':
                 affinity = atoi(optarg);
                 printf("Affinity at core: %d\n ", affinity);
                 break;
             case 'c':
                 cycle = atoi(optarg);
-                printf("Execution cycle :%d(microsecond)", cycle);
+                printf("Execution cycle :%d(microsecond)\n", cycle);
                 break;
             case 'z':
                 strcpy(zfile, optarg);
-                printf("Zfile path: %s", zfile);
+                printf("Zfile path: %s\n", zfile);
                 break;
             case '?':
                 printf("usage:\n");
-                printf("-a          Programme CPU affinity. 01 by default.");
-                printf("-c          Execution cycle count by microsecond. 100 by default.");
-                printf("-z          Zfile path. ~/ztargrt.dat by default.");
+                printf("-a          Programme CPU affinity. 01 by default.\n");
+                printf("-c          Execution cycle count by microsecond. 100 by default.\n");
+                printf("-z          Zfile path. ~/ztargrt.dat by default.\n");
                 break;
         }
     }
+    printf("Executing with affinity:%d, cycle: %d, zfile:%s\n", affinity, cycle, zfile);
 
-    setAffinity(affinity);
+    set_cpu(affinity);
     //TODO:?
     //handle SIGINT
 
@@ -120,7 +154,7 @@ int main(int argc, char* argv[]){
         len = sizeof(client);
         printf("waitting for shot number...\n");
 
-        msglen = recvfrom(sockfd, buf, MAXDATASIZE, 0, (struct sockaddr *)&client, &len);
+        msglen = recvfrom(sockfd, buf, 100, 0, (struct sockaddr *)&client, &len);
         if(msglen < 0)
         {
             perror("recvfrom() error.\n");
@@ -128,7 +162,7 @@ int main(int argc, char* argv[]){
         }
         buf[msglen] = '\0';
         sscanf(buf,"%d,%d",&shot,&total_time);
-        printf("Got shot info from %s:%d. \n", buf, inet_ntoa(client.sin_addr),htons(client.sin_port));
+        printf("Got shot info from %s:%d. \n", inet_ntoa(client.sin_addr),htons(client.sin_port));
 	    printf("SHOT: %d,Total Time: %d ms\n",shot,total_time);
 
         //init
@@ -153,13 +187,14 @@ int main(int argc, char* argv[]){
         
         mlockall(MCL_CURRENT);
         
-        sprintf(stdout, "Initialization completed. Waiting for trigger...\n ");
+        fprintf(stdout, "Initialization completed. Waiting for trigger...\n ");
         
         //process
+        int sss;
         G_action = process;
         for (sss = 0; sss < nsamples;sss++){
             c_time = -7.0 + 1.0 * sss * clk;	
-            run(nsamples, G_action);
+            run(G_action,c_time);
 		    current_time[sss] = c_time;
         }
             
@@ -174,7 +209,7 @@ int main(int argc, char* argv[]){
 	    fclose(fpt);
         free(current_time); 
 
-        sprintf(stdout, "Waiting for NEXT shot...\n ");
+        fprintf(stdout, "Waiting for NEXT shot...\n ");
 
         // parper next shot;
         tl0 = 0xdeadbeef;

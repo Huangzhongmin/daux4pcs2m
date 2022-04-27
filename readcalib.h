@@ -2,8 +2,8 @@
  * @Author: zhongmin.huang
  * @Date: 2022-04-24 10:02:18
  * @LastEditors: zhongmin.huang
- * @LastEditTime: 2022-04-24 10:03:18
- * @FilePath: \pcs_onserverd:\hl2m_pcs\daux4pcs2m\readcalib.h
+ * @LastEditTime: 2022-04-27 19:19:54
+ * @FilePath: \新建文件夹 (2)\readcalib.h
  * @Description: 
  */
 #ifndef __READCALIB_H__
@@ -14,7 +14,7 @@
 #include <string.h>
 #include <ctype.h>
 
-int readcalib(char* file,float* calibs){
+int readcalib(char* file,double* calibs){
     FILE* fp = fopen(file, "r");
     char buf[128];
     char* lasts;
@@ -29,7 +29,7 @@ int readcalib(char* file,float* calibs){
         else{
             lasts = strrchr(buf,' ');
             if(++lasts)
-                sscanf(lasts,"%f",&calibs[c++]);
+                sscanf(lasts,"%lf",&calibs[c++]);
         }
     }
     fclose(fp);

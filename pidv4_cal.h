@@ -11,7 +11,10 @@ struct scratch_area
         float elast;
         };
 
-
+struct scratch_area *scratch;
+int in_calculate = 1;
+int in_use_gi = 1;
+float in_shape[3];
 
 void pidv4( int numpvelem,float time,int *calculate,int *use_gi,float *pvector,float *shape,float *error,float GP,float GD,float GI,float TAUP,float TAUD,float TAUI,struct scratch_area *scratch)
 {

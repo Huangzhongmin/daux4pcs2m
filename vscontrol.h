@@ -9,8 +9,10 @@
 #ifndef __VSCONTROL_H__
 #define _VSCONTROL_H__
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #define E_MATRIX_LEN 93
 
@@ -20,6 +22,19 @@ typedef struct point
     double x;
     double y;
 } Point;
+/*
+ * GLOBAL: caliba
+ */
+#define CHNS 96
+#define CALIBSFILE "/link/ops/data_hl2m/calib.dat"
+#define IPINDEX 18
+#define FLfirst 21
+#define MPlast 94
+
+double calibfactor[CHNS];
+double calibdata[CHNS];
+
+
 
 /*
  * GLOBAL: ztarget file data
@@ -69,7 +84,8 @@ char zfbuf[ZFBUFLEN];
  * GLOBAL: real target
  */
 
-double *t_zx1ref,;
+double *lmvvs, *lmzx1ref, *lmzx1gp, *lmzx1gd, *lmzx1gi, *lmzx1tp, *lmzx1td, *lmzx1ti, *lmszdt, *lmsztc;
+double *zpos, *error, *pricmd, *fincmd;
 
 #include "math.h"
 
@@ -112,6 +128,28 @@ void time_cal(double dx, double starttime, double endtime, double *time)
     }
 }
 ////////////////////////////////////////////////////////
+int readcalib(char* file,double* calibs){
+    FILE* fp = fopen(file, "r");
+    char buf[128];
+    char* lasts;
+    int c = 0;
+    while(fgets(buf,sizeof(buf),fp)!=NULL){
+        if(buf[0]=='!' || isspace(buf[0]))
+            continue;
+    #ifdef ONLY_VS
+        if(buf[2]!='m' && buf[2]!='f')
+            continue;
+    #endif
+        else{
+            lasts = strrchr(buf,' ');
+            if(++lasts)
+                sscanf(lasts,"%lf",&calibs[c++]);
+        }
+    }
+    fclose(fp);
+    return c;
+}
+
 void get_wave(Point** wave,unsigned int* wnum,FILE* fp){
     int i;
     double x,y;
@@ -227,9 +265,37 @@ void read_ztarget(char *zfile)
 void interpolation_data(double start_time,double end_time,double clk,){
 
     int total_points = ((end_time - start_time) / clk) + 1;
+    
+    lmvvs1 = (double *)malloc(total_points * sizeof(double));
+    liner(clk, vvs1, vvs1_len, limit_st, limit_et, lmvvs1);
 
-    t_zx1ref = (double *)malloc(total_points * sizeof(double));
-    liner(clk, zx1ref, zx1ref_len, limit_st, limit_et, t_zx1ref);
+    lmzx1ref = (double *)malloc(total_points * sizeof(double));
+    liner(clk, zx1ref, zx1ref_len, limit_st, limit_et, lmzx1ref);
+
+    lmzx1gp = (double *)malloc(total_points * sizeof(double));
+    liner(clk, zx1gp, zx1gp_len, limit_st, limit_et, lmzx1gp);
+
+    lmzx1gd = (double *)malloc(total_points * sizeof(double));
+    liner(clk, zx1gd, zx1gd_len, limit_st, limit_et, lmzx1gd);
+
+    lmzx1gi = (double *)malloc(total_points * sizeof(double));
+    liner(clk, zx1gif, zx1gi_len, limit_st, limit_et, lmzx1gi);
+    
+    lmzx1tp = (double *)malloc(total_points * sizeof(double));
+    liner(clk, zx1tp, zx1tp_len, limit_st, limit_et, lmzx1tp);
+    
+    lmzx1td = (double *)malloc(total_points * sizeof(double));
+    liner(clk, zx1td, zx1td_len, limit_st, limit_et, lmzx1td);
+    
+    lmzx1ti = (double *)malloc(total_points * sizeof(double));
+    liner(clk, zx1ti, zx1ti_len, limit_st, limit_et, lmzx1ti);
+    
+    lmsztc = (double *)malloc(total_points * sizeof(double));
+    liner(clk, sztc, sztc_len, limit_st, limit_et, lmsztc);
+    
+    lmszdt = (double *)malloc(total_points * sizeof(double));
+    liner(clk, szdt, szdt_len, limit_st, limit_et, lmszdt);
+    
 }
 
 
@@ -278,4 +344,55 @@ void clean_ztarget(){
     }
     free(EMatrix);
 }
+
+verticald_init(int nsamples){
+    lmidx = 0;
+    readcalib(CALIBSFILE,  calibfactor);
+
+    zpos = (double *)malloc(nsamples * sizeof(double));
+    error = (double *)malloc(nsamples * sizeof(double));
+    pricmd = (double *)malloc(nsamples * sizeof(double));
+    fincmd = (double *)malloc(nsamples * sizeof(double));
+
+}
+
+verticald(short * rawdata,int cycle,double time){
+    double ip;
+    //whiche
+    int e=0;
+    //whichm
+    int m = 0;
+
+    int i;
+    for (i = 0; i < CHNS; i++){
+        calibdata[i] = 0.000305 * rawdata[i] * calibfactor[i];
+    }
+    ip = calibdata[IPINDEX] * 1000;
+    //TODO
+    //ipbuild?
+    if (fabs((double)ip) > 60000){
+        for (i = FLfirst; i < MPlast;i++)
+            zpos[cycle] += calibdata[i] * EMatrix[e][i + 3];
+    }
+    else
+        zpos[cycle] = 0;
+
+    if (fabs((double)ip) > 1000)
+        ip = 1.0 / ip;
+    else
+        ip = 1.0;
+
+    zpos[cycle] = zpos[cycle] * ip;
+    error[cycle] = lmzx1ref[cycle] - zpos[cycle];
+
+
+
+
+}
+
+
+
+
+
+
 #endif

@@ -1,0 +1,54 @@
+[?1049h[?1h=[1;55r[?12;25h[?12l[?25h[27m[m[H[2J[?25l[55;1H"./llc-test-harness-AI123-AO56" 181L, 3904C[1;1H[34m#!/bin/bash
+# llc-test-harness-AI123-AO56
+# AI+AO llc 
+# CONTROLS
+# LLC_TRG=ext
+# LLC_CLK=ext
+# AISITES=1,2,3,4
+# AOSITES=5
+# DOSITES=6
+# XOCOMMS=A[m
+
+[38;5;130m[[m [38;5;130m-d[m scripts [38;5;130m][m && [38;5;130mcd[m scripts
+
+[38;5;130msource[m afhba-common
+[34m# site definitions SC: system controller, CB: commsB, AI: AI, AO : AO[m
+[36mSC[m=[31m0[m
+[36mCA[m=[31m13[m
+[36mCB[m=[31m12[m
+
+
+[34m# MUST set remote ip-address[m
+[36mREMIP[m=[35m${REMIP[m[38;5;130m:-[macq2106_110[35m}[m
+[36mUSER_PROMPT[m=[35m${USER_PROMPT[m[38;5;130m:-[my[35m}[m[11C[34m# y forces break between init and run[m
+[36mINTCLKDIV[m=[35m${INTCLKDIV[m[38;5;130m:-[m10000[35m}[m[11C[34m# 100M/100 = 100kHz[m
+[36mEXTCLKDIV[m=[35m${EXTCLKDIV[m[38;5;130m:-[m50[35m}[m[14C[34m# 1M/10 = 100kHz[m
+
+[36mLLC_CLK[m=[35m${LLC_CLK[m[38;5;130m:-[mext[35m}[m
+[34m# default auto SOFT_TRIGGER=0, in transient mode, script will terminate...
+# next run the CONTROL PROGRAM
+# THEN trigger (eg ext trigger, or run soft_trigger command on box[m
+[36mSOFT_TRIGGER[m=[35m${SOFT_TRIGGER[m[38;5;130m:-[m0[35m}[m
+
+[34m# default transient mode, set # samples.  "no": run continuous mode[m
+[36mTRANSIENT[m=[35m${TRANSIENT[m[38;5;130m:-[m2000000[35m}[m
+
+
+[36mAISITES[m=[35m${AISITES[m[38;5;130m:-[m1,2,3,4[35m}[m
+[34m# pick off the first AI site as M[m
+[36mAI[m=[35m${AISITES[m[38;5;130m%[m,*[35m}[m
+
+
+[36mAOSITES[m=[35m${AOSITES[m[38;5;130m:-[m5[35m}[m
+[34m# pick off the first AO site as M.[m
+[36mAO[m=[35m${AOSITES[m[38;5;130m%[m,*[35m}[m
+
+[34m# DO assume ALL OUTPUTS. [m
+[36mDOSITES[m=[35m${DOSITES[m[38;5;130m:-[m6[35m}[m
+[36mDO[m=[38;5;130m"[m[35m${DOSITES[m[38;5;130m/[m,[38;5;130m/[m [35m}[m[38;5;130m"[m
+
+[34m# route AI data to both CA and CB[m
+[36mCA_SITES[m=[35m${AISITES}[m
+[36mCB_SITES[m=[35m${AISITES}[m
+
+[36mXO_COMMS[m=[35m${XO_COMMS[m[38;5;130m:-[mA[35m}[m[55;221H22,1[10CTop[22;1H[?12l[?25h[?25l[55;1H[97m[41mE388: Couldn't find definition[m[55;31H[K[55;221H22,1[10CTop[22;1H[?12l[?25h[?25l[55;221H[K[55;221H22,1[10CTop[22;1H[?12l[?25h[?25l[55;1HType  :quit<Enter>  to exit Vim[55;221H[K[55;221H22,1[10CTop[22;1H[?12l[?25h[?25l[55;221H[K[55;221H22,1[10CTop[22;1H[?12l[?25h[?25l[55;221H[K[55;221H22,1[10CTop[22;1H[?12l[?25h[?25l[55;221H[K[55;221H22,1[10CTop[22;1H[?12l[?25h[?25l[55;1H[1m-- INSERT --[m[55;13H[K[55;221H22,1[10CTop[22;1H[K[22;1H[?12l[?25h[?25lc[55;224H2[22;2H[?12l[?25h[?25lc[55;224H3[22;3H[?12l[?25h[?25lc[55;224H4[22;4H[?12l[?25h[?25lc[55;224H5[22;5H[?12l[?25h[?25lc[55;224H6[22;6H[?12l[?25h[55;1H[K[?25l[55;221H22,5[10CTop[22;5H[?12l[?25h[?25l[55;1H[97m[41mE388: Couldn't find definition[m[55;221H[K[55;221H22,5[10CTop[22;5H[?12l[?25h[?25l[55;222H1[21;5H[?12l[?25h[?25l[55;224H6[21;6H[?12l[?25h[?25l[55;224H7[21;7H[?12l[?25h[?25l[55;224H6[21;6H[?12l[?25h[?25l[55;224H5[21;5H[?12l[?25h[?25l[55;1H[K[55;1H:[?12l[?25hq[?25l[?12l[?25h![?25l[?12l[?25h[?25l[55;1H[K[55;1H[?1l>[?12l[?25h[?1049l2 files to edit

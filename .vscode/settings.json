@@ -1,12 +1,29 @@
 {
     "cSpell.words": [
         "anum",
+        "calibdata",
+        "calibfactor",
+        "fderror",
+        "ipeoo",
+        "ipetl",
         "ipnorm",
+        "ipref",
+        "lbbtime",
+        "nsamples",
+        "pidv",
+        "pvector",
         "szdt",
         "sztc",
         "wnum",
         "zfbuf",
         "ZFBUFLEN",
+        "zfile",
+        "zpos",
         "ztarget"
-    ]
+    ],
+    "files.associations": {
+        "low_pass_filter.h": "c",
+        "pidv4_cal.h": "c",
+        "afhba-llcontrol-common.h": "c"
+    }
 }

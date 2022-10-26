@@ -6,14 +6,27 @@
 #include <string.h>
 #include <math.h>
 
+#include "calib.h"
 #include "afhba-llcontrol-common.h"
 
+/************** Device config ****************/
+char LLCHOST[] = "acq2106_110";
+int devnum = 0;
+#ifdef DO
+char DOHOST[] = "acq2106_348";
+int do_devnum = 1;
+#endif
+/********************************************/
+
 #define AO_OFFSET (HB_LEN / 2)
+#define BITS2RAW 20.F/65536.F
 
 #define NSHORTS 160
 #define DEF_AO_CHAN 32
-#define VO_LEN (aochan * sizeof(short) + (has_do32 ? sizeof(unsigned) : 0))
-#define DO_IX (16) /* longwords */
+//#define VO_LEN (aochan * sizeof(short) + (has_do32 ? sizeof(unsigned) : 0))
+#define VO_LEN 64 //1 channel(4 bytes) round to 64
+//#define DO_IX (16) /* longwords */
+#define DO_IX 0
 #define MV100 (32768 / 100)
 #define PAGE_SHIFT 12
 #define PAGE_MASK (~(PAGE_SIZE - 1))
@@ -24,37 +37,37 @@
 #define PAGE_SIZE (1UL << PAGE_SHIFT)
 #endif
 
+struct info
+{
+	char para[16];
+	int data;
+};
+
 void *host_buffer;
+void *host_do_buffer;
+
 short *ai_buffer;
 short *card_buffer;
-int fd;
+int fd, do_fd;
 int CLK_DIV = 10;
-int EXT_CLK = 1000000;
+int EXT_CLK = 1000000;//ext CLK must be 1MHz
 
 int rc = 0;
 
 int samples_buffer = 1; /* set > 1 to decimate max 16*64bytes */
 FILE *fp_log;
 void (*G_action)(void *);
-int devnum = 0;
 /** potentially good for cache fill, but sets initial value zero */
 int G_POLARITY = 1;
 /** env POLARITY=-1 negates feedback this is usefult to know that the
  *  software is in fact doing something 					 */
 
 short *ao_buffer;
+unsigned *do_buffer;
+
 int has_do32;
 int DUP1 = 0; /* duplicate AI[DUP1], default 0 */
 short *AO_IDENT;
-
-unsigned tl0 = 0xdeadbeef;   // always run one dummy loop 
-unsigned tl1;
-unsigned sample;
-int println = 0;
-int pollcat = 0;
-int sss;
-void *pDMem = NULL;
-unsigned int BUFFER = 160;
 
 struct XLLC_DEF xllc_def = {
 	.pa = RTM_T_USE_HOSTBUF,
@@ -82,61 +95,40 @@ short *make_ao_ident(int ao_ident)
 	return ids;
 }
 
-int FFNLUT;
-void control_feedforward(short *ao, short *ai);
-
-/*
- * *selectBoards()********************************************
- */
-struct info
-{
-	char para[16];
-	int data;
-};
-
-int calibdata_initialized = 0;
-float calibdata[6][32]; // max boards * max channels
-
-static void selectBoards(int num_boards)
-{
-	struct info cal[200];
-	ncards = num_boards;
-
-	if (!calibdata_initialized)
-	{
-		int crd_index;
-		int chn;
-		for (crd_index = 0; crd_index < ncards; crd_index++)
-		{
-			for (chn = 0; chn < channels; chn++)
-			{
-				calibdata[crd_index][chn] = 1.0;
-			}
-		}
-		calibdata_initialized = 1;
-	}
-	printf("selectboards is running!\n");
-}
-
 /*
  **acq2106_init()**********************************************
  *
  */
 void setup();
+void acq2106_start(int cycle_time){
+	char scriptcmd[128];
+	sprintf(scriptcmd, "REMIP=%s EXTCLKDIV=%d ./llc-test-harness-AI1234-AO5-DO6 start_stream > /dev/null", LLCHOST, cycle_time);
+	rc = system(scriptcmd);
+
+	#ifdef DO
+	sprintf(scriptcmd, "REMIP=%s EXTCLKDIV=%d ./llc-test-harness-AI1-DO6 start_stream > /dev/null", DOHOST, cycle_time);
+	rc = system(scriptcmd);
+    #endif
+	
+}
 
 int acq2106_init(int cycle_time, int num_boards, int num_channels)
 {
+	printf("ACQ2106 initializing ... ");
 	/*frequency division*/
 	CLK_DIV = cycle_time;
-	char modifyDiv[128];
-	sprintf(modifyDiv, "sed '25c EXTCLKDIV=${EXTCLKDIV:-%d}' -i llc-test-harness-AI123-AO56", cycle_time);
-	system(modifyDiv);
+	
+	char scriptcmd[128];
+	sprintf(scriptcmd, "REMIP=%s EXTCLKDIV=%d ./llc-test-harness-AI1234-AO5-DO6 init_2106 > /dev/null", LLCHOST, cycle_time);
+	rc = system(scriptcmd);
+	
+	#ifdef DO
+	sprintf(scriptcmd, "REMIP=%s EXTCLKDIV=%d ./llc-test-harness-AI1-DO6 init_2106 > /dev/null", DOHOST, cycle_time);
+	rc = system(scriptcmd);
+    #endif
 
-	selectBoards(num_boards);
-
-	rc = system("./llc-test-harness-AI123-AO56 > /dev/null");
-	if(WIFEXITED(rc))
-		printf("The init scripts is executed!\n");
+	if(!WIFEXITED(rc))
+		printf("ERROR:The init scripts executing failed! code: %d\n",rc);
 
 	int i = 0;
 	struct info params[10];
@@ -144,12 +136,12 @@ int acq2106_init(int cycle_time, int num_boards, int num_channels)
 	fp = fopen("parameter.txt", "r");
 	if (fp == NULL)
 	{
-		printf("ERROR: parameter.txt missing!\n");
+		printf("\nERROR: parameter.txt missing!\n");
 		return 0;
 	}
 	while (!feof(fp))
 	{
-		fscanf(fp, "%s %d\n", &params[i].para, &params[i].data);
+		fscanf(fp, "%s %d\n", params[i].para, &params[i].data);
 		if (strcmp(params[i].para, "DEVNUM") == 0)
 			devnum = params[i].data;
 		else if (strcmp(params[i].para, "AOCHAN") == 0)
@@ -168,21 +160,23 @@ int acq2106_init(int cycle_time, int num_boards, int num_channels)
 	channels = num_channels;
 	nchan = ncards * channels;
 
-	int ao_ident = 0;
-	AO_IDENT = make_ao_ident(ao_ident);
-
-	xllc_def.len = VI_LEN;
+	//int ao_ident = 0;
+	//AO_IDENT = make_ao_ident(ao_ident);
 
 	setup();
 
-	mlockall(MCL_CURRENT);
+	printf("Done.\n");
 
+	printf("ACQ2106 AI Device Host: %s. Sampling cycle: %d microseconds.\n", LLCHOST, CLK_DIV);
+	
+	#ifdef DO
+	printf("ACQ2106 DO Device Host: %s.\n", DOHOST);
+	#endif
+	return 0;
 }
 
 void setup()
 {
-	// printf("setup is running!\n");
-	char logfile[80];
 	setup_logging(devnum);
 
 	ai_buffer = calloc(NSHORTS, sizeof(short));
@@ -190,6 +184,7 @@ void setup()
 
 	host_buffer = get_mapping(devnum, &fd);
 	xllc_def.len = samples_buffer * VI_LEN;
+
 	if (xllc_def.len > 16 * 64)
 	{
 		xllc_def.len = 16 * 64;
@@ -202,7 +197,8 @@ void setup()
 		exit(1);
 	}
 
-	xllc_def.pa += AO_OFFSET; // HB_LEN;
+	#ifdef DO
+	host_do_buffer = get_mapping(do_devnum, &do_fd);
 	xllc_def.len = VO_LEN;
 
 	if (has_do32)
@@ -210,14 +206,14 @@ void setup()
 		int ll = xllc_def.len / 64;
 		xllc_def.len = ++ll * 64;
 	}
-	if (ioctl(fd, AFHBA_START_AO_LLC, &xllc_def))
+	if (ioctl(do_fd, AFHBA_START_AO_LLC, &xllc_def))
 	{
 		perror("ioctl AFHBA_START_AO_LLC");
 		exit(1);
 	}
+	#endif
 
-	ao_buffer = (short *)((void *)host_buffer + AO_OFFSET); // HB_LEN);
-
+	/*
 	if (has_do32)
 	{
 		// marker pattern for the PAD area for hardware trace
@@ -228,6 +224,9 @@ void setup()
 			dox[DO_IX + ii] = (ii << 24) | (ii << 16) | (ii << 8) | ii;
 		}
 	}
+	*/
+
+	do_buffer = (unsigned *)(host_do_buffer);
 
 	// printf("setup run over!\n");
 }
@@ -252,6 +251,7 @@ int acq2106_dadig_output()
 	for (i = 0; i < ncards; i++)
 		//	dox[DO_IX] = 100;
 		dox[i] = 0;
+	return 0;
 }
 
 /*
@@ -268,7 +268,7 @@ u32 acq2106_dig_input(int crd_index)
  */
 unsigned acq2106_get_tlatch(int crd_index)
 {
-	unsigned tl0;
+	//unsigned tl0;
 	unsigned tl1;
 
 	tl1 = TLATCH(ai_buffer)[0];
@@ -279,10 +279,11 @@ unsigned acq2106_get_tlatch(int crd_index)
 /*
  * *acq2106_get_calibrations()********************************
  */
-float *acq2106_get_calibrations(int card)
+/*float *acq2106_get_calibrations(int card)
 {
 	return (&calibdata[card][0]);
 }
+*/
 
 /*
  * *acq2106_get_data_pointer()****************************************
@@ -296,13 +297,14 @@ short *acq2106_get_data_pointer(int crd_index)
 /*
  * *acq2106_map_data_to_array()********************************
  */
-int acq2106_map_data_to_array(int crd_index, short *digitizer_data, int num_to_map, short *digitizer_data_mapped)
+/*int acq2106_map_data_to_array(int crd_index, short *digitizer_data, int num_to_map, short *digitizer_data_mapped)
 {
 	int ii;
 	for (ii = 0; ii < num_to_map; ii++)
 		digitizer_data_mapped[ii] = (short)((float)digitizer_data[ii] * calibdata[crd_index][ii]);
 	return 0;
 }
+*/
 
 /*
  * *acq2106_poll_check()***************************************
@@ -320,8 +322,30 @@ int acq2106_end()
 	munmap(host_buffer, HB_LEN);
 	close(fd);
 	fclose(fp_log);
-	printf("acq2106 end is running!\n");
+
+#if DO
+	munmap(host_do_buffer, VO_LEN);
+	close(do_fd);
+#endif
+
 	return 0;
+}
+
+void acq2106_collect_baseline(int cycle, int total){
+	if(cycle == 0)
+		memset(baseline, 0, CHNS * sizeof(float));
+
+	int j;
+	for (j = 0; j < CHNS; j++)
+	{
+		baseline[j] += ai_buffer[j] * BITS2RAW / total;
+	}
+
+	if(cycle == total - 1){
+		for (j = 0; j < CHNS; j++)
+			printf("%f ",baseline[j]);
+		printf("\n ");
+	}
 }
 
 #endif

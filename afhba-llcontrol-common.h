@@ -68,6 +68,7 @@ int ncards = DEF_NCARDS;
 #define DEF_CHANNELS 32
 int channels = DEF_CHANNELS;
 
+//NSHORTS is defined to 160 later
 #define NSHORTS	(nchan+spadlongs*sizeof(unsigned)/sizeof(short))
 #define VI_LEN 	(NSHORTS*sizeof(short))
 #define SPIX	(nchan*sizeof(short)/sizeof(unsigned))			/* Scratch Pad IndeX */

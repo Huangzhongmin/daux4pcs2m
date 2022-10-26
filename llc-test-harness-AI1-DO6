@@ -7,7 +7,7 @@
 # AISITES=1,2,3
 # AOSITES=5,6
 # XOCOMMS=A
-#Attention ! do not change the 25 row!!!!!
+
 [ -d scripts ] && cd scripts
 
 source afhba-common
@@ -16,13 +16,20 @@ SC=0
 CA=13
 CB=12
 
+FUNCLIST="init_comms init_2106 start_stream cleanup user_prompt"
 
 # MUST set remote ip-address
-#REMIP=${1:-acq2106_110}
-REMIP=${1:-acq2106_110}
+if [[ ! ${FUNCLIST} =~ ${!#} ]] && [ $# != 0 ]; then
+    REMIP=${!#:-${REMIP:-acq2106_003}}
+    set -- "${@:1:$#-1}"
+else
+    REMIP=${REMIP:-acq2106_110}     
+fi
+
 USER_PROMPT=${USER_PROMPT:-y}		# y forces break between init and run
-INTCLKDIV=${INTCLKDIV:-10000}		# 100M/100 = 100kHz
-EXTCLKDIV=${EXTCLKDIV:-100}
+INTCLKDIV=${INTCLKDIV:-1000000}		# 100M/100 = 100kHz
+EXTCLKDIV=${EXTCLKDIV:-50}		# 1M/10 = 100kHz
+
 LLC_CLK=${LLC_CLK:-ext}
 # default auto SOFT_TRIGGER=0, in transient mode, script will terminate...
 # next run the CONTROL PROGRAM
@@ -34,18 +41,18 @@ LLC_TRG=${LLC_TRG:-ext}
 TRANSIENT=${TRANSIENT:-2000000}
 
 
-AISITES=${AISITES:-1,2,3,4}
+AISITES=${AISITES:-1}
 # pick off the first AI site as M
-AI=${AISITES%,*}
+AI=${AISITES%%,*}
 
 
-AOSITES=${AOSITES:-5}
+AOSITES=${AOSITES:}
 # pick off the first AO site as M.
-AO=${AOSITES%,*}
+AO=${AOSITES%%,*}
 
 # DO assume ALL OUTPUTS. 
 DOSITES=${DOSITES:-6}
-DO="${DOSITES%,*}"
+DO="${DOSITES/,/ }"
 
 # route AI data to both CA and CB
 CA_SITES=${AISITES}
@@ -147,8 +154,8 @@ start_stream() {
                 else
                         POST=100000
                 fi
-                remote_cmd $SC transient POST=$POST SOFT_TRIGGER=$SOFT_TRIGGER 
-		remote_cmd $SC set_arm
+                remote_cmd $SC transient POST=$POST SOFT_TRIGGER=$SOFT_TRIGGER
+                remote_cmd $SC set_arm
         fi
 }
 
@@ -168,8 +175,15 @@ user_prompt() {
 	done
 }
 
-init_2106
-#[ "$USER_PROMPT" = "y" ] && user_prompt
-start_stream
-
+if [ "x$*" = "x" ]; then
+	echo NO args, do everything
+	init_2106
+	[ "$USER_PROMPT" = "y" ] && user_prompt
+	start_stream
+else
+	for arg in $@; do
+		echo RUN $arg
+		eval $arg
+	done
+fi
 

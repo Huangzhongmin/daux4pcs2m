@@ -2,7 +2,7 @@
  * @Author: zhongmin.huang
  * @Date: 2022-03-29 15:18:54
  * @LastEditors: zhongmin.huang
- * @LastEditTime: 2022-04-25 21:24:57
+ * @LastEditTime: 2022-05-09 20:03:23
  * @FilePath: \新建文件夹 (2)\rfm_helper.h
  * @Description: 
  */
@@ -17,21 +17,14 @@
 #define MAPBUFSIZE 0x00100000 /* 1MB DMA Buffer Size */
 #define BUFFER_SIZE 160
 
-#define OFFSET_DAQ        0x100
+#define OFFSET_DAQ 0x100
 #define OFFSET_head 0x0
 #define RFM_RESERVED 500
 #define OFFSET_2 0x2000
 #define TIMEOUT 60000
 
-struct head_msg
-{
-    char name[256];
-    int offset;
-    int num_channel;
-};
-
 RFM2G_STATUS result;      /* Return codes from RFM2g API calls */
-RFM2G_INT32 i;            /* Loop variable                     */
+//RFM2G_INT32 i;            /* Loop variable                     */
 RFM2G_NODE otherNodeId;   /* Node ID of the other RFM board    */
 RFM2G_CHAR string[40];    /* User input                        */
 RFM2GEVENTINFO EventInfo; /* Info about received interrupts    */
@@ -48,7 +41,7 @@ short inbuffer[NSHORTS];	  /* Data read from another node       */
 
 int rfm_init()
 {
-    printf("RFM init ... ");
+    printf("RFM initializing ... ");
     result = RFM2gOpen(RFM_DEVICE0, &Handle);
     if (result != RFM2G_SUCCESS)
     {
@@ -57,7 +50,6 @@ int rfm_init()
         return (-1);
     }
 
-    RFM2G_UINT64 offset = 0x140000000 | RFM2G_DMA_MMAP_OFFSET;
     result = RFM2gSetDMAThreshold(Handle, 16); // 16 -> DMA transfer for the data larger than 16 Bytes!
     if (result != RFM2G_SUCCESS)
     {
@@ -67,6 +59,8 @@ int rfm_init()
         return (-1);
     }
     printf("Done.\n");
+    printf("RFM Device: %s, Offset: %d\n",RFM_DEVICE0 ,OFFSET_DAQ);
+    return 0;
 }
 
 int rfm_end()
